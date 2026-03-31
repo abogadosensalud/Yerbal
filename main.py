@@ -51,7 +51,9 @@ async def scrape():
 
         try:
             await page.goto(URL, timeout=60000)
-            await page.wait_for_load_state("networkidle")
+
+            # 🔑 Esperar explícitamente al precio
+            await page.wait_for_selector("#price-container > p", timeout=15000)
 
             # ------------------------
             # 1. DETECTAR SI NO EXISTE
@@ -69,30 +71,10 @@ async def scrape():
                 return
 
             # ------------------------
-            # 2. BUSCAR PRECIO (FORMA ROBUSTA)
+            # 2. OBTENER PRECIO (EL BUENO)
             # ------------------------
-            # Este selector apunta al componente real del precio
-            locator = page.locator("qr-card-info-prop")
-
-            if await locator.count() == 0:
-                print("No se encontró el contenedor del precio")
-                return
-
-            text = await locator.first.inner_text()
-
-            # Buscar línea que tenga USD
-            lines = text.split("\n")
-            price = None
-
-            for line in lines:
-                if "USD" in line or "U$S" in line:
-                    price = line.strip()
-                    break
-
-            if not price:
-                print("No se pudo extraer el precio dentro del componente")
-                print("Contenido:", text)
-                return
+            price = await page.locator("#price-container > p").inner_text()
+            price = price.strip()
 
             print("Precio actual:", price)
 
@@ -111,7 +93,11 @@ async def scrape():
             save_price(price)
 
         except Exception as e:
-            send_telegram(f"Error en scraper: {str(e)}")
+            # 👇 Esto ahora distingue mejor errores reales
+            if "Timeout" in str(e):
+                send_telegram("La publicación de la calle Yerbal, ya no está disponible.")
+            else:
+                send_telegram(f"Error en scraper: {str(e)}")
 
         finally:
             await browser.close()
