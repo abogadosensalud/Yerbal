@@ -2,7 +2,7 @@ name: Scraper Yerbal
 
 on:
   schedule:
-    - cron: "0 11 * * *"  # 8 AM Argentina = 11 UTC
+    - cron: "0 11 * * *"  # 08:00 Argentina (UTC-3)
   workflow_dispatch:
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repo
         uses: actions/checkout@v3
 
       - name: Setup Python
@@ -21,7 +21,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          playwright install
+          playwright install --with-deps
 
       - name: Run scraper
         env:
