@@ -10,21 +10,44 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout repo
       - name: Checkout repo
         uses: actions/checkout@v3
+        with:
+          persist-credentials: true
 
+      # 2. Traer últimos cambios (clave para last_price.txt)
+      - name: Pull latest changes
+        run: git pull
+
+      # 3. Setup Python
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: 3.11
 
+      # 4. Instalar dependencias
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
           playwright install --with-deps
 
+      # 5. Ejecutar scraper
       - name: Run scraper
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python main.py
+
+      # 6. Commit si cambió el precio
+      - name: Commit last_price.txt
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "actions@github.com"
+          
+          git add last_price.txt || true
+          
+          # Solo commitea si hay cambios
+          git diff --cached --quiet || git commit -m "update price"
+          
+          git push
