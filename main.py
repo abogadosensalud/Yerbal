@@ -1,6 +1,5 @@
 import asyncio
 import os
-import re
 from playwright.async_api import async_playwright
 import requests
 
@@ -38,23 +37,7 @@ def save_price(price):
         f.write(price)
 
 
-# ------------------------
-# UTIL
-# ------------------------
-def extract_price(text):
-    """
-    Busca precios tipo:
-    USD 120.000
-    U$S 120000
-    """
-    match = re.search(r"(USD|U\$S)\s?([\d\.]+)", text)
-    if match:
-        return match.group(0)
-    return None
-
-
 def normalize(price):
-    """Convierte 'USD 120.000' -> 120000"""
     return int("".join(filter(str.isdigit, price)))
 
 
@@ -70,29 +53,45 @@ async def scrape():
             await page.goto(URL, timeout=60000)
             await page.wait_for_load_state("networkidle")
 
-            # 🔍 Obtener todo el texto
-            page_text = await page.inner_text("body")
-            lower_text = page_text.lower()
-
             # ------------------------
             # 1. DETECTAR SI NO EXISTE
             # ------------------------
+            body = await page.inner_text("body")
+            lower = body.lower()
+
             if (
-                "no disponible" in lower_text
-                or "publicación finalizada" in lower_text
-                or "no se encuentra" in lower_text
-                or "404" in lower_text
+                "no disponible" in lower
+                or "publicación finalizada" in lower
+                or "no se encuentra" in lower
+                or "404" in lower
             ):
                 send_telegram("La publicación de la calle Yerbal, ya no está disponible.")
                 return
 
             # ------------------------
-            # 2. EXTRAER PRECIO
+            # 2. BUSCAR PRECIO (FORMA ROBUSTA)
             # ------------------------
-            price = extract_price(page_text)
+            # Este selector apunta al componente real del precio
+            locator = page.locator("qr-card-info-prop")
+
+            if await locator.count() == 0:
+                print("No se encontró el contenedor del precio")
+                return
+
+            text = await locator.first.inner_text()
+
+            # Buscar línea que tenga USD
+            lines = text.split("\n")
+            price = None
+
+            for line in lines:
+                if "USD" in line or "U$S" in line:
+                    price = line.strip()
+                    break
 
             if not price:
-                print("No se pudo encontrar el precio (posible cambio de DOM)")
+                print("No se pudo extraer el precio dentro del componente")
+                print("Contenido:", text)
                 return
 
             print("Precio actual:", price)
